@@ -21,8 +21,6 @@ const (
 	TOPIC      = "greet"
 )
 
-type Sub struct{}
-
 func main() {
 	options := nats.GetDefaultOptions()
 	options.Servers = strings.Split(NATS_URLS, ",")
@@ -69,14 +67,14 @@ func main() {
 		micro.Broker(broker),
 		micro.Transport(transport),
 	)
-	micro.RegisterSubscriber(TOPIC, server.Server(), new(Sub))
+	micro.RegisterSubscriber(TOPIC, server.Server(), Listen)
 	err = server.Run()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to register subscriber.")
 	}
 }
 
-func (s *Sub) Listen(ctx context.Context, request *greeter.Request) error {
+func Listen(ctx context.Context, request *greeter.Request) error {
 	log.Info().Msg(request.Name)
 	fmt.Println(request.Name)
 	return nil

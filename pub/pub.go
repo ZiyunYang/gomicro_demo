@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
+	"gomicrostan/greeter"
 	"strings"
 	"time"
 )
@@ -97,7 +98,7 @@ func main() {
 	i := 1
 	for {
 		log.Info().Msgf("%d times greeting.", i)
-		publisher.Publish(context.Background(), fmt.Sprintf("%d times greeting.", i))
+		publisher.Publish(context.Background(), &greeter.Request{Name:fmt.Sprintf("%d times greeting.", i)})
 		i++
 		time.Sleep(time.Second * 5)
 	}
