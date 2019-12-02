@@ -58,8 +58,7 @@ func main() {
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
 		stanBroker.ClusterID(CLUSTER_ID),
-		stanBroker.ClientID("client-456"),
-		stanBroker.DurableName("sayhi"),
+		stanBroker.DurableName(TOPIC),
 	)
 	server := micro.NewService(
 		micro.Name("yzysub"),
@@ -67,12 +66,16 @@ func main() {
 		micro.Broker(broker),
 		micro.Transport(transport),
 	)
-	micro.RegisterSubscriber(TOPIC, server.Server(), Listen)
+	micro.RegisterSubscriber(TOPIC, server.Server(), Listen,
+		stanBroker.ServerSubscriberOption(stan.DeliverAllAvailable()),
+	stanBroker.ServerSubscriberOption(stan.SetManualAckMode()),
+	stanBroker.ServerSubscriberOption(stan.MaxInflight(1)))
 	err = server.Run()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to register subscriber.")
 	}
 }
+
 
 func Listen(ctx context.Context, request *greeter.Request) error {
 	log.Info().Msg(request.Name)
