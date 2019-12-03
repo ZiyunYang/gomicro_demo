@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/micro/go-micro"
+	"github.com/micro/go-micro/broker"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
 	natsTransport "github.com/micro/go-plugins/transport/nats"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
+	micro2 "github.com/upengs/gomicro_demo/pkg/micro"
 	"gomicrostan/greeter"
 	"strings"
 )
@@ -81,4 +83,17 @@ func Listen(ctx context.Context, request *greeter.Request) error {
 	log.Info().Msg(request.Name)
 	fmt.Println(request.Name)
 	return nil
+}
+
+func sub()  {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := micro2.NewGoMicroController(ctx, []string{NATS_URLS}, "", NATS_TOKEN, CLUSTER_ID).Subscribes([]micro2.Subscribes{{Topic:TOPIC,Handle: func(event broker.Event) error {
+		fmt.Println(string(event.Message().Body))
+		event.Ack()
+		return nil
+	},SubscribeOption:stanBroker.SubscribeOption(stan.DeliverAllAvailable())}}...)
+	if err!=nil{
+		panic(err)
+	}
 }

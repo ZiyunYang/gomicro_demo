@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
+	micro2 "github.com/upengs/gomicro_demo/pkg/micro"
 	"gomicrostan/greeter"
 	"strings"
 	"time"
@@ -99,5 +100,14 @@ func main() {
 		publisher.Publish(context.Background(), &greeter.Request{Name:fmt.Sprintf("%d times greeting.", i)})
 		i++
 		time.Sleep(time.Second * 5)
+	}
+}
+
+func pub() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := micro2.NewGoMicroController(ctx, []string{NATS_URLS}, "", NATS_TOKEN, CLUSTER_ID).Publish(TOPIC, "22222")
+	if err!=nil{
+		panic(err)
 	}
 }
