@@ -81,6 +81,11 @@ const MaxNonAckElicitingAcks = 19
 // prevents DoS attacks against the streamFrameSorter
 const MaxStreamFrameSorterGaps = 1000
 
+// MinStreamFrameBufferSize is the minimum data length of a received STREAM frame
+// that we use the buffer for. This protects against a DoS where an attacker would send us
+// very small STREAM frames to consume a lot of memory.
+const MinStreamFrameBufferSize = 128
+
 // MaxCryptoStreamOffset is the maximum offset allowed on any of the crypto streams.
 // This limits the size of the ClientHello and Certificates that can be received.
 const MaxCryptoStreamOffset = 16 * (1 << 10)
@@ -127,6 +132,16 @@ const MinPacingDelay time.Duration = 100 * time.Microsecond
 // DefaultConnectionIDLength is the connection ID length that is used for multiplexed connections
 // if no other value is configured.
 const DefaultConnectionIDLength = 4
+
+// MaxActiveConnectionIDs is the number of connection IDs that we're storing.
+const MaxActiveConnectionIDs = 4
+
+// MaxIssuedConnectionIDs is the maximum number of connection IDs that we're issuing at the same time.
+const MaxIssuedConnectionIDs = 6
+
+// PacketsPerConnectionID is the number of packets we send using one connection ID.
+// If the peer provices us with enough new connection IDs, we switch to a new connection ID.
+const PacketsPerConnectionID = 10000
 
 // AckDelayExponent is the ack delay exponent used when sending ACKs.
 const AckDelayExponent = 3

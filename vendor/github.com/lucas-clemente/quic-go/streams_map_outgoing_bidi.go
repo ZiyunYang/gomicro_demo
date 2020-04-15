@@ -2,6 +2,7 @@
 // Any changes will be lost if this file is regenerated.
 // see https://github.com/cheekybits/genny
 
+//nolint:unused
 package quic
 
 import (
@@ -154,7 +155,7 @@ func (m *outgoingBidiStreamsMap) DeleteStream(num protocol.StreamNum) error {
 
 	if _, ok := m.streams[num]; !ok {
 		return streamError{
-			message: "Tried to delete unknown stream %d",
+			message: "Tried to delete unknown outgoing stream %d",
 			nums:    []protocol.StreamNum{num},
 		}
 	}

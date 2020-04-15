@@ -6,23 +6,27 @@ import "time"
 var (
 	// DefaultRuntime is default micro runtime
 	DefaultRuntime Runtime = NewRuntime()
+	// DefaultName is default runtime service name
+	DefaultName = "go.micro.runtime"
 )
 
 // Runtime is a service runtime manager
 type Runtime interface {
 	// Init initializes runtime
 	Init(...Option) error
-	// Registers a service
+	// Create registers a service
 	Create(*Service, ...CreateOption) error
-	// Remove a service
-	Delete(*Service) error
+	// Read returns the service
+	Read(...ReadOption) ([]*Service, error)
 	// Update the service in place
 	Update(*Service) error
+	// Remove a service
+	Delete(*Service) error
 	// List the managed services
 	List() ([]*Service, error)
-	// starts the runtime
+	// Start starts the runtime
 	Start() error
-	// Shutdown the runtime
+	// Stop shuts down the runtime
 	Stop() error
 }
 
@@ -76,12 +80,10 @@ type Event struct {
 type Service struct {
 	// Name of the service
 	Name string
-	// url location of source
-	Source string
-	// Path to store source
-	Path string
-	// Exec command
-	Exec string
 	// Version of the service
 	Version string
+	// url location of source
+	Source string
+	// Metadata stores metadata
+	Metadata map[string]string
 }

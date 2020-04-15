@@ -6,12 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"sort"
 	"time"
+
+	"github.com/lucas-clemente/quic-go/internal/qerr"
 
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/utils"
 )
+
+func init() {
+	rand.Seed(time.Now().UTC().UnixNano())
+}
 
 type transportParameterID uint16
 
@@ -29,6 +36,7 @@ const (
 	ackDelayExponentParameterID               transportParameterID = 0xa
 	maxAckDelayParameterID                    transportParameterID = 0xb
 	disableMigrationParameterID               transportParameterID = 0xc
+	activeConnectionIDLimitParameterId        transportParameterID = 0xe
 )
 
 // TransportParameters are parameters sent to the peer during the handshake
@@ -41,20 +49,29 @@ type TransportParameters struct {
 	MaxAckDelay      time.Duration
 	AckDelayExponent uint8
 
+	DisableMigration bool
+
 	MaxPacketSize protocol.ByteCount
 
 	MaxUniStreamNum  protocol.StreamNum
 	MaxBidiStreamNum protocol.StreamNum
 
-	IdleTimeout      time.Duration
-	DisableMigration bool
+	IdleTimeout time.Duration
 
-	StatelessResetToken  *[16]byte
-	OriginalConnectionID protocol.ConnectionID
+	StatelessResetToken     *[16]byte
+	OriginalConnectionID    protocol.ConnectionID
+	ActiveConnectionIDLimit uint64
 }
 
 // Unmarshal the transport parameters
 func (p *TransportParameters) Unmarshal(data []byte, sentBy protocol.Perspective) error {
+	if err := p.unmarshal(data, sentBy); err != nil {
+		return qerr.Error(qerr.TransportParameterError, err.Error())
+	}
+	return nil
+}
+
+func (p *TransportParameters) unmarshal(data []byte, sentBy protocol.Perspective) error {
 	if len(data) < 2 {
 		return errors.New("transport parameter data too short")
 	}
@@ -93,7 +110,8 @@ func (p *TransportParameters) Unmarshal(data []byte, sentBy protocol.Perspective
 			initialMaxStreamsBidiParameterID,
 			initialMaxStreamsUniParameterID,
 			idleTimeoutParameterID,
-			maxPacketSizeParameterID:
+			maxPacketSizeParameterID,
+			activeConnectionIDLimitParameterId:
 			if err := p.readNumericTransportParameter(r, paramID, int(paramLen)); err != nil {
 				return err
 			}
@@ -133,6 +151,9 @@ func (p *TransportParameters) Unmarshal(data []byte, sentBy protocol.Perspective
 	}
 	if !readMaxAckDelay {
 		p.MaxAckDelay = protocol.DefaultMaxAckDelay
+	}
+	if p.MaxPacketSize == 0 {
+		p.MaxPacketSize = protocol.MaxByteCount
 	}
 
 	// check that every transport parameter was sent at most once
@@ -192,7 +213,12 @@ func (p *TransportParameters) readNumericTransportParameter(
 		if maxAckDelay >= protocol.MaxMaxAckDelay {
 			return fmt.Errorf("invalid value for max_ack_delay: %dms (maximum %dms)", maxAckDelay/time.Millisecond, (protocol.MaxMaxAckDelay-time.Millisecond)/time.Millisecond)
 		}
+		if maxAckDelay < 0 {
+			maxAckDelay = utils.InfDuration
+		}
 		p.MaxAckDelay = maxAckDelay
+	case activeConnectionIDLimitParameterId:
+		p.ActiveConnectionIDLimit = val
 	default:
 		return fmt.Errorf("TransportParameter BUG: transport parameter %d not found", paramID)
 	}
@@ -203,6 +229,14 @@ func (p *TransportParameters) readNumericTransportParameter(
 func (p *TransportParameters) Marshal() []byte {
 	b := &bytes.Buffer{}
 	b.Write([]byte{0, 0}) // length. Will be replaced later
+
+	// add a greased value
+	utils.BigEndian.WriteUint16(b, uint16(27+31*rand.Intn(100)))
+	len := rand.Intn(16)
+	randomData := make([]byte, len)
+	rand.Read(randomData)
+	utils.BigEndian.WriteUint16(b, uint16(len))
+	b.Write(randomData)
 
 	// initial_max_stream_data_bidi_local
 	p.marshalVarintParam(b, initialMaxStreamDataBidiLocalParameterID, uint64(p.InitialMaxStreamDataBidiLocal))
@@ -246,6 +280,8 @@ func (p *TransportParameters) Marshal() []byte {
 		utils.BigEndian.WriteUint16(b, uint16(p.OriginalConnectionID.Len()))
 		b.Write(p.OriginalConnectionID.Bytes())
 	}
+	// active_connection_id_limit
+	p.marshalVarintParam(b, activeConnectionIDLimitParameterId, p.ActiveConnectionIDLimit)
 
 	data := b.Bytes()
 	binary.BigEndian.PutUint16(data[:2], uint16(b.Len()-2))
@@ -260,8 +296,8 @@ func (p *TransportParameters) marshalVarintParam(b *bytes.Buffer, id transportPa
 
 // String returns a string representation, intended for logging.
 func (p *TransportParameters) String() string {
-	logString := "&handshake.TransportParameters{OriginalConnectionID: %s, InitialMaxStreamDataBidiLocal: %#x, InitialMaxStreamDataBidiRemote: %#x, InitialMaxStreamDataUni: %#x, InitialMaxData: %#x, MaxBidiStreamNum: %d, MaxUniStreamNum: %d, IdleTimeout: %s, AckDelayExponent: %d, MaxAckDelay: %s"
-	logParams := []interface{}{p.OriginalConnectionID, p.InitialMaxStreamDataBidiLocal, p.InitialMaxStreamDataBidiRemote, p.InitialMaxStreamDataUni, p.InitialMaxData, p.MaxBidiStreamNum, p.MaxUniStreamNum, p.IdleTimeout, p.AckDelayExponent, p.MaxAckDelay}
+	logString := "&handshake.TransportParameters{OriginalConnectionID: %s, InitialMaxStreamDataBidiLocal: %#x, InitialMaxStreamDataBidiRemote: %#x, InitialMaxStreamDataUni: %#x, InitialMaxData: %#x, MaxBidiStreamNum: %d, MaxUniStreamNum: %d, IdleTimeout: %s, AckDelayExponent: %d, MaxAckDelay: %s, ActiveConnectionIDLimit: %d"
+	logParams := []interface{}{p.OriginalConnectionID, p.InitialMaxStreamDataBidiLocal, p.InitialMaxStreamDataBidiRemote, p.InitialMaxStreamDataUni, p.InitialMaxData, p.MaxBidiStreamNum, p.MaxUniStreamNum, p.IdleTimeout, p.AckDelayExponent, p.MaxAckDelay, p.ActiveConnectionIDLimit}
 	if p.StatelessResetToken != nil { // the client never sends a stateless reset token
 		logString += ", StatelessResetToken: %#x"
 		logParams = append(logParams, *p.StatelessResetToken)

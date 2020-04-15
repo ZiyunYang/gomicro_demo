@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+service LogGather {
+    rpc LogFileStream(DownloadRequest) returns (stream DownloadResponse) {}
+}
+
+message DownloadRequest {
+    Logfile logfile = 1;
+	int64 offset = 2;
+	int64 whence = 3;
+}
+
+message DownloadResponse{
+    int64 total = 1;
+    int64 times = 2;
+    bytes dataBytes =3;
+}
+
+message Logfile {
+    string pod = 1;
+    string container = 2;
+    string file = 3;
+    string topic = 4;
+}
+
