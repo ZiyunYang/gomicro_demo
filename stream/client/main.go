@@ -35,9 +35,13 @@ func main() {
 	/* HTTP server */
 	server := http.Server{
 		Handler: http.HandlerFunc(func(res http.ResponseWriter, req *http.Request){
-			//res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
-			//res.Header().Set("Content-Type", http.DetectContentType(nil))
-			DownloadLogFile(res,client,"/Users/xkahj/logtest.txt",int64(1000),int32(2))
+			res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
+			res.Header().Set("Content-Type", http.DetectContentType(nil))
+			err:=DownloadLogFile(res,client,"/Users/xkahj/logtest.txt",int64(1000),int32(2))
+			if err!=nil{
+				res.WriteHeader(400)
+				res.Write([]byte("Failed"))
+			}
 		}),
 	}
 	server.Serve(l)
@@ -58,10 +62,11 @@ func DownloadLogFile(res http.ResponseWriter, client protobuf.LogGatherService, 
 		log.Error().Msgf("Failed to get log file from wise-logger. %s",err.Error())
 		return err
 	}
-	res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
-	res.Header().Set("Content-Type", http.DetectContentType(nil))
+	//res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
+	//res.Header().Set("Content-Type", http.DetectContentType(nil))
 	total := int(rsp.Total)
-	times := 1
+	last:=1
+	res.Write(rsp.DataBytes)
 	for i := 0; i < total; i++ {
 		log.Info().Msgf("receiving %d ",i)
 		rsp, err := stream.Recv()
@@ -69,12 +74,15 @@ func DownloadLogFile(res http.ResponseWriter, client protobuf.LogGatherService, 
 			log.Error().Msg("Failed to get log file from wise-logger.")
 			break
 		}
+		if last+1!=int(rsp.Times){
+			break
+		}
 		res.Write(rsp.DataBytes)
-		times++
+		last++
 	}
 
-	if times < total {
-		log.Error().Msgf("Lost some data, received %d sections data", times)
+	if last < total {
+		log.Error().Msgf("Lost some data, received %d sections data", last)
 		res.Write([]byte("The downloaded log file is incomplete, please retry it."))
 	}
 	if err := stream.Close(); err != nil {

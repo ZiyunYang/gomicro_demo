@@ -26,9 +26,10 @@ const (
 
 type Streamer struct{}
 
-const(
-	natsLimit=1024*1024
+const (
+	natsLimit = 1024 * 1024
 )
+
 func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequest, stream protobuf.LogGather_LogFileStreamStream) error {
 	glog.V(4).Infof("downloading log file %s, the offset is %d and the whence is %d", req.Logfile.File, req.Offset, req.Whence)
 
@@ -49,7 +50,7 @@ func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequ
 	if pos%natsLimit > 0 {
 		total += 1
 	}
-	log.Info().Msgf("1---pos:%d,total:%d\n",pos,total)
+	log.Info().Msgf("1---pos:%d,total:%d\n", pos, total)
 	// send stream
 	for i := 1; i <= int(total); i++ {
 		buf := make([]byte, natsLimit)
@@ -57,25 +58,24 @@ func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequ
 		if err != nil && err != io.EOF {
 			return err
 		}
-		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf,});err!=nil{
+		log.Info().Msgf("sending data : %s", string(buf))
+		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf,}); err != nil {
 			return err
 		}
 		start += bytesRead
-		log.Info().Msgf("2---start:%d\n",start)
+		log.Info().Msgf("2---start:%d\n", start)
 	}
 
 	return nil
 }
 
-func main(){
-	service:=buildservice("yzyserver")
-	protobuf.RegisterLogGatherHandler(service.Server(),&Streamer{})
+func main() {
+	service := buildservice("yzyserver")
+	protobuf.RegisterLogGatherHandler(service.Server(), &Streamer{})
 	if err := service.Run(); err != nil {
 		log.Fatal().Err(err).Send()
 	}
 }
-
-
 
 func buildservice(name string) micro.Service {
 	options := nats.GetDefaultOptions()
