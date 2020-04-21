@@ -1,21 +1,28 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/micro/go-micro/broker"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
+	log2 "log"
 	"strings"
 	"time"
 )
 
 const (
-	NATS_URLS  = "nats://118.31.50.67:4222"
-	CLUSTER_ID = "test-cluster"
-	NATS_TOKEN = "NATS12345"
-	TOPIC      = "durable.queue.test"
+	TOPIC = "durable.queue.test"
+)
+
+var (
+	clusterID string
+	clientID  string
+	URL       string
+	async     bool
+	token     string
 )
 
 func main() {
@@ -25,20 +32,34 @@ func main() {
 		panic(err)
 	}
 	for i := 0; i < 100; i++ {
-		err:=publisher.Publish(TOPIC, &broker.Message{Body: []byte(fmt.Sprintf("%d---", i))})
-		if err!=nil{
+		err := publisher.Publish(TOPIC, &broker.Message{Body: []byte(fmt.Sprintf("%d---", i))})
+		if err != nil {
 			log.Err(err).Msgf("got publish err")
 		}
-		log.Info().Msgf("Publishing %d",i)
+		log.Info().Msgf("Publishing %d", i)
 		time.Sleep(time.Second * 5)
 	}
 
 }
 
 func buildBroker() broker.Broker {
+	flag.StringVar(&URL, "s", stan.DefaultNatsURL, "The nats server URLs (separated by comma)")
+	flag.StringVar(&URL, "server", stan.DefaultNatsURL, "The nats server URLs (separated by comma)")
+	flag.StringVar(&clusterID, "c", "test-cluster", "The NATS Streaming cluster ID")
+	flag.StringVar(&clusterID, "cluster", "test-cluster", "The NATS Streaming cluster ID")
+	flag.StringVar(&clientID, "id", "stan-pub", "The NATS Streaming client ID to connect with")
+	flag.StringVar(&clientID, "clientid", "stan-pub", "The NATS Streaming client ID to connect with")
+	flag.BoolVar(&async, "a", false, "Publish asynchronously")
+	flag.BoolVar(&async, "async", false, "Publish asynchronously")
+	flag.StringVar(&token, "cr", "", "Credentials File")
+	flag.StringVar(&token, "creds", "", "Credentials File")
+
+	log2.SetFlags(0)
+	//flag.Usage = usage
+	flag.Parse()
 	options := nats.GetDefaultOptions()
-	options.Servers = strings.Split(NATS_URLS, ",")
-	options.Token = NATS_TOKEN
+	options.Servers = strings.Split(URL, ",")
+	options.Token = token
 	options.ReconnectedCB = func(*nats.Conn) {
 		log.Info().Msg("NATS reconnected!")
 	}
@@ -56,9 +77,9 @@ func buildBroker() broker.Broker {
 	//transport := natsTransport.NewTransport(natsTransport.Options(options))
 
 	stanOptions := stan.GetDefaultOptions()
-	stanOptions.NatsURL = NATS_URLS
+	stanOptions.NatsURL = URL
 	var err error
-	stanOptions.NatsConn, err = nats.Connect(stanOptions.NatsURL, nats.Token(NATS_TOKEN))
+	stanOptions.NatsConn, err = nats.Connect(stanOptions.NatsURL, nats.Token(token))
 	if err != nil {
 		log.Error().Err(err).Msgf("nats.Connect err: %v", err)
 	}
@@ -71,7 +92,8 @@ func buildBroker() broker.Broker {
 	}
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
-		stanBroker.ClusterID(CLUSTER_ID),
+		stanBroker.ClusterID(clusterID),
+		stanBroker.ClientID(clientID),
 	)
 	return broker
 }

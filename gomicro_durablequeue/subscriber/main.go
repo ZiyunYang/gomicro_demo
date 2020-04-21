@@ -1,23 +1,51 @@
 package main
 
 import (
+	"flag"
 	"github.com/micro/go-micro/broker"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
+	log2 "log"
 	"strings"
 	"time"
 )
 
 const (
-	NATS_URLS  = "nats://118.31.50.67:4222"
-	CLUSTER_ID = "test-cluster"
-	NATS_TOKEN = "NATS12345"
-	TOPIC      = "durable.queue.test"
+	TOPIC = "durable.queue.test"
+)
+
+var (
+	clusterID   string
+	clientID    string
+	URL         string
+	async       bool
+	token       string
+	qgroup      string
+	unsubscribe bool
+	durable     string
 )
 
 func main() {
+	flag.StringVar(&URL, "s", stan.DefaultNatsURL, "The nats server URLs (separated by comma)")
+	flag.StringVar(&URL, "server", stan.DefaultNatsURL, "The nats server URLs (separated by comma)")
+	flag.StringVar(&clusterID, "c", "test-cluster", "The NATS Streaming cluster ID")
+	flag.StringVar(&clusterID, "cluster", "test-cluster", "The NATS Streaming cluster ID")
+	flag.StringVar(&clientID, "id", "stan-pub", "The NATS Streaming client ID to connect with")
+	flag.StringVar(&clientID, "clientid", "stan-pub", "The NATS Streaming client ID to connect with")
+	flag.BoolVar(&async, "a", false, "Publish asynchronously")
+	flag.BoolVar(&async, "async", false, "Publish asynchronously")
+	flag.StringVar(&token, "cr", "", "Credentials File")
+	flag.StringVar(&token, "creds", "", "Credentials File")
+	flag.StringVar(&durable, "durable", "", "Durable subscriber name")
+	flag.StringVar(&qgroup, "qgroup", "", "Queue group name")
+	flag.BoolVar(&unsubscribe, "unsub", false, "Unsubscribe the durable on exit")
+	flag.BoolVar(&unsubscribe, "unsubscribe", false, "Unsubscribe the durable on exit")
+
+	log2.SetFlags(0)
+	flag.Parse()
+
 	s1 := buildBroker()
 	if err := s1.Connect(); err != nil {
 		log.Fatal().Msg("Failed to connect stan server.")
@@ -27,11 +55,11 @@ func main() {
 		stan.SetManualAckMode(),
 		stan.AckWait(time.Second*10),
 		stan.MaxInflight(1),
-		stan.DurableName("aaa"), ), broker.Queue("bbb"))
+		stan.DurableName(durable)), broker.Queue(qgroup))
 	if err != nil {
 		log.Fatal().Err(err).Msgf("Failed to subscribe topic : %s", TOPIC)
 	}
-	select{}
+	select {}
 }
 
 func ProcessEvent(e broker.Event) error {
@@ -40,8 +68,8 @@ func ProcessEvent(e broker.Event) error {
 }
 func buildBroker() broker.Broker {
 	options := nats.GetDefaultOptions()
-	options.Servers = strings.Split(NATS_URLS, ",")
-	options.Token = NATS_TOKEN
+	options.Servers = strings.Split(URL, ",")
+	options.Token = token
 	options.ReconnectedCB = func(*nats.Conn) {
 		log.Info().Msg("NATS reconnected!")
 	}
@@ -59,9 +87,9 @@ func buildBroker() broker.Broker {
 	//transport := natsTransport.NewTransport(natsTransport.Options(options))
 
 	stanOptions := stan.GetDefaultOptions()
-	stanOptions.NatsURL = NATS_URLS
+	stanOptions.NatsURL = URL
 	var err error
-	stanOptions.NatsConn, err = nats.Connect(stanOptions.NatsURL, nats.Token(NATS_TOKEN))
+	stanOptions.NatsConn, err = nats.Connect(stanOptions.NatsURL, nats.Token(token))
 	if err != nil {
 		log.Error().Err(err).Msgf("nats.Connect err: %v", err)
 	}
@@ -74,7 +102,7 @@ func buildBroker() broker.Broker {
 	}
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
-		stanBroker.ClusterID(CLUSTER_ID),
+		stanBroker.ClusterID(clusterID),
 	)
 	return broker
 }
