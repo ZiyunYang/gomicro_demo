@@ -31,13 +31,13 @@ func main() {
 		log.Error().Msg("Faild to connct stan server.")
 		panic(err)
 	}
-	for i := 0; i < 100; i++ {
-		err := publisher.Publish(TOPIC, &broker.Message{Body: []byte(fmt.Sprintf("%d---", i))})
+	for i := 0; i < 1000; i++ {
+		err := publisher.Publish(TOPIC, &broker.Message{Body: []byte(fmt.Sprintf("%d", i))})
 		if err != nil {
 			log.Err(err).Msgf("got publish err")
 		}
 		log.Info().Msgf("Publishing %d", i)
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 1)
 	}
 
 }

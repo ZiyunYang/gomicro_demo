@@ -8,6 +8,8 @@ import (
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
 	log2 "log"
+	"os"
+	"os/signal"
 	"strings"
 	"time"
 )
@@ -50,8 +52,7 @@ func main() {
 	if err := s1.Connect(); err != nil {
 		log.Fatal().Msg("Failed to connect stan server.")
 	}
-	log.Info().Msg("11111")
-	_, err := s1.Subscribe(TOPIC, ProcessEvent, stanBroker.SubscribeOption(
+	sub, err := s1.Subscribe(TOPIC, ProcessEvent, stanBroker.SubscribeOption(
 		stan.SetManualAckMode(),
 		stan.AckWait(time.Second*10),
 		stan.MaxInflight(1),
@@ -59,11 +60,24 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msgf("Failed to subscribe topic : %s", TOPIC)
 	}
-	select {}
+
+	signalChan := make(chan os.Signal, 1)
+	cleanupDone := make(chan bool)
+	signal.Notify(signalChan, os.Interrupt)
+	go func() {
+		for range signalChan {
+			log.Info().Msg("Receiving interrupt signal")
+			sub.Unsubscribe()
+			cleanupDone <- true
+		}
+	}()
+	<-cleanupDone
+
+	//select {}
 }
 
 func ProcessEvent(e broker.Event) error {
-	log.Info().Msgf("processing %s times event.", string(e.Message().Body))
+	log.Info().Msgf("processing %s event.", string(e.Message().Body))
 	return e.Ack()
 }
 func buildBroker() broker.Broker {
@@ -103,6 +117,7 @@ func buildBroker() broker.Broker {
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
 		stanBroker.ClusterID(clusterID),
+		stanBroker.ClientID(clientID),
 	)
 	return broker
 }

@@ -97,17 +97,17 @@ func main() {
 	}
 
 	if !async {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 1000; i++ {
 			err = sc.Publish(TOPIC, []byte(fmt.Sprintf("%d", i)))
 			if err != nil {
 				log.Fatalf("Error during publish: %v\n", err)
 			}
 			log.Printf("Published [%s] : '%s'\n", TOPIC, fmt.Sprintf("%d", i))
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 1)
 		}
 
 	} else {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 10000; i++ {
 			glock.Lock()
 			guid, err = sc.PublishAsync(TOPIC, []byte(fmt.Sprintf("%d", i)), acb)
 			if err != nil {
@@ -124,7 +124,7 @@ func main() {
 			case <-time.After(10 * time.Second):
 				log.Fatal("timeout")
 			}
-			time.Sleep(time.Second * 5)
+			//time.Sleep(time.Second * 1)
 		}
 
 	}
