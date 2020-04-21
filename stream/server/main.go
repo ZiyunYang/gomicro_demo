@@ -12,7 +12,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
-	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -27,8 +27,19 @@ const (
 type Streamer struct{}
 
 const (
-	natsLimit = 1024 * 1024
+	natsLimit = 32 *1024
 )
+
+func init() {
+	var str string
+	for i := 0; i < 1000; i++ {
+		str = fmt.Sprintf("%s\n%s--%d", str, "log", i)
+	}
+	err := ioutil.WriteFile("/Users/xkahj/logtest.txt", []byte(str), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequest, stream protobuf.LogGather_LogFileStreamStream) error {
 	glog.V(4).Infof("downloading log file %s, the offset is %d and the whence is %d", req.Logfile.File, req.Offset, req.Whence)
@@ -39,31 +50,39 @@ func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequ
 	}
 	defer f.Close()
 
-	// calculate how many streams logger needs to send
-	pos, err := f.Seek(req.Offset, int(req.Whence))
+	fi, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("seek file %s error: %v", f.Name(), err)
+		return fmt.Errorf("open file %s error: %v", req.Logfile.File, err)
 	}
-	log.Info().Msgf("pos:%d\n", pos)
-	start := 0
-	total := pos / natsLimit
-	if pos%natsLimit > 0 {
-		total += 1
-	}
-	log.Info().Msgf("1---pos:%d,total:%d\n", pos, total)
+
+	//
+	//// calculate how many streams logger needs to send
+	////pos, err := f.Seek(req.Offset, int(req.Whence))
+	//if err != nil {
+	//	return fmt.Errorf("seek file %s error: %v", f.Name(), err)
+	//}
+	//log.Info().Msgf("pos:%d\n", pos)
+	//start := 0
+	total := (fi.Size() + natsLimit - 1) / natsLimit
+	//log.Info().Msgf("1---pos:%d,total:%d\n", pos, total)
 	// send stream
+	buf := make([]byte, natsLimit)
+	var n int
 	for i := 1; i <= int(total); i++ {
-		buf := make([]byte, natsLimit)
-		bytesRead, err := f.ReadAt(buf, int64(start))
-		if err != nil && err != io.EOF {
+		n, err = f.Read(buf)
+		if err != nil {
+			log.Error().Msgf("err--",err.Error())
 			return err
 		}
-		log.Info().Msgf("sending data : %s", string(buf))
-		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf,}); err != nil {
+
+		//bytesRead, err := f.ReadAt(buf, int64(start))
+
+		log.Info().Msgf("sending data : %d", n)
+		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf[:n],}); err != nil {
 			return err
 		}
-		start += bytesRead
-		log.Info().Msgf("2---start:%d\n", start)
+		//start += bytesRead
+		//log.Info().Msgf("2---start:%d\n", start)
 	}
 
 	return nil

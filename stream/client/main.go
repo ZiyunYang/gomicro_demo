@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gomicro_demo/stream/protobuf"
 	"github.com/micro/go-micro"
+	"github.com/micro/go-micro/broker/nats"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
 	natsTransport "github.com/micro/go-plugins/transport/nats"
@@ -21,9 +22,10 @@ const (
 	NATS_TOKEN = "NATS12345"
 	TOPIC      = "greet"
 )
+
 func main() {
-	service:=buildservice("yzyclient")
-	client:=protobuf.NewLogGatherService("yzyserver",service.Client())
+	service := buildservice("yzyclient")
+	client := protobuf.NewLogGatherService("yzyserver", service.Client())
 
 	n := "tcp"
 	addr := "127.0.0.1:9094"
@@ -34,11 +36,11 @@ func main() {
 
 	/* HTTP server */
 	server := http.Server{
-		Handler: http.HandlerFunc(func(res http.ResponseWriter, req *http.Request){
+		Handler: http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 			res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
 			res.Header().Set("Content-Type", http.DetectContentType(nil))
-			err:=DownloadLogFile(res,client,"/Users/xkahj/logtest.txt",int64(1000),int32(2))
-			if err!=nil{
+			err := DownloadLogFile(res, client, "/Users/xkahj/logtest.txt", int64(1000), int32(2))
+			if err != nil {
 				res.WriteHeader(400)
 				res.Write([]byte("Failed"))
 			}
@@ -50,8 +52,8 @@ func main() {
 func DownloadLogFile(res http.ResponseWriter, client protobuf.LogGatherService, path string, offset int64, whence int32) error {
 	downloadReq := &protobuf.DownloadRequest{
 		Logfile: &protobuf.Logfile{
-			File:      path,
-			Topic:     "",
+			File:  path,
+			Topic: "",
 		},
 		Offset: offset,
 		Whence: int64(whence),
@@ -59,22 +61,22 @@ func DownloadLogFile(res http.ResponseWriter, client protobuf.LogGatherService, 
 	stream, err := client.LogFileStream(context.TODO(), downloadReq)
 	rsp, err := stream.Recv()
 	if err != nil {
-		log.Error().Msgf("Failed to get log file from wise-logger. %s",err.Error())
+		log.Error().Msgf("Failed to get log file from wise-logger. %s", err.Error())
 		return err
 	}
 	//res.Header().Set("Content-Disposition", "attachment; filename=log.txt")
 	//res.Header().Set("Content-Type", http.DetectContentType(nil))
 	total := int(rsp.Total)
-	last:=1
+	last := 1
 	res.Write(rsp.DataBytes)
 	for i := 0; i < total; i++ {
-		log.Info().Msgf("receiving %d ",i)
+		log.Info().Msgf("receiving %d ", i)
 		rsp, err := stream.Recv()
 		if err != nil {
 			log.Error().Msg("Failed to get log file from wise-logger.")
 			break
 		}
-		if last+1!=int(rsp.Times){
+		if last+1 != int(rsp.Times) {
 			break
 		}
 		res.Write(rsp.DataBytes)
