@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gomicro_demo/pubsub/greeter"
+	"github.com/gomicro_demo/gomicro_pubsub/greeter"
 	"github.com/micro/go-micro"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
@@ -12,6 +12,7 @@ import (
 	"github.com/nats-io/stan.go"
 	"github.com/rs/zerolog/log"
 	"strings"
+	"time"
 )
 
 const (
@@ -21,7 +22,18 @@ const (
 	TOPIC      = "greet"
 )
 
-func main() {
+var (
+	publisher micro.Publisher
+)
+
+//type Greeter struct{}
+//
+//func (g *Greeter) Hello(ctx context.Context, req *greeter.Request, rsp *greeter.Response) error {
+//	rsp.Msg = "Hello 3"
+//	log.Info().Msg(rsp.Msg)
+//	return nil
+//}
+func Server() {
 	options := nats.GetDefaultOptions()
 	options.Servers = strings.Split(NATS_URLS, ",")
 	options.Token = NATS_TOKEN
@@ -51,31 +63,41 @@ func main() {
 	stanOptions.ConnectionLostCB = func(conn stan.Conn, e error) {
 		defer conn.Close()
 		if e != nil {
-			log.Error().Msgf("go-stan close! Reason: %v", e)
+			fmt.Printf("go-stan close! Reason: %v", e)
 		}
 		log.Info().Msg("go-stan close!")
 	}
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
 		stanBroker.ClusterID(CLUSTER_ID),
-		stanBroker.ClientID("client-789"),
-		stanBroker.DurableName(TOPIC),
 	)
-	server := micro.NewService(
-		micro.Name("yzysub"),
+	client := micro.NewService(
+		micro.Name("yzyserpub"),
 		micro.Registry(registry),
 		micro.Broker(broker),
 		micro.Transport(transport),
 	)
-	micro.RegisterSubscriber(TOPIC, server.Server(), Listen, stanBroker.ServerSubscriberOption(stan.DeliverAllAvailable()))
-	err = server.Run()
+	//err := greeter.RegisterGreeterHandler(server.Server(), &Greeter{})
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	publisher = micro.NewPublisher(TOPIC, client.Client())
+
+	err = client.Run()
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to register subscriber.")
+		//panic(err)
 	}
 }
 
-func Listen(ctx context.Context, request *greeter.Request) error {
-	log.Info().Msg(request.Name)
-	fmt.Println(request.Name)
-	return nil
+func main() {
+	go Server()
+	time.Sleep(time.Second * 5)
+	i := 1
+	for {
+		log.Info().Msgf("%d times greeting.", i)
+		publisher.Publish(context.Background(), &greeter.Request{Name: fmt.Sprintf("%d times greeting.", i)})
+		i++
+		time.Sleep(time.Second * 5)
+	}
 }

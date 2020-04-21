@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gomicro_demo/pubsub/greeter"
+	"github.com/gomicro_demo/gomicro_pubsub/greeter"
 	"github.com/micro/go-micro"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
@@ -58,6 +58,7 @@ func main() {
 	broker := stanBroker.NewBroker(
 		stanBroker.Options(stanOptions),
 		stanBroker.ClusterID(CLUSTER_ID),
+		stanBroker.ClientID("client-789"),
 		stanBroker.DurableName(TOPIC),
 	)
 	server := micro.NewService(
@@ -66,16 +67,12 @@ func main() {
 		micro.Broker(broker),
 		micro.Transport(transport),
 	)
-	micro.RegisterSubscriber(TOPIC, server.Server(), Listen,
-		stanBroker.ServerSubscriberOption(stan.DeliverAllAvailable()),
-	stanBroker.ServerSubscriberOption(stan.SetManualAckMode()),
-	stanBroker.ServerSubscriberOption(stan.MaxInflight(1)))
+	micro.RegisterSubscriber(TOPIC, server.Server(), Listen, stanBroker.ServerSubscriberOption(stan.DeliverAllAvailable()))
 	err = server.Run()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to register subscriber.")
 	}
 }
-
 
 func Listen(ctx context.Context, request *greeter.Request) error {
 	log.Info().Msg(request.Name)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/glog"
-	"github.com/gomicro_demo/stream/protobuf"
+	"github.com/gomicro_demo/gomicro_stream/protobuf"
 	"github.com/micro/go-micro"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
@@ -27,7 +27,7 @@ const (
 type Streamer struct{}
 
 const (
-	natsLimit = 32 *1024
+	natsLimit = 32 * 1024
 )
 
 func init() {
@@ -71,14 +71,14 @@ func (r *Streamer) LogFileStream(ctx context.Context, req *protobuf.DownloadRequ
 	for i := 1; i <= int(total); i++ {
 		n, err = f.Read(buf)
 		if err != nil {
-			log.Error().Msgf("err--",err.Error())
+			log.Error().Msgf("err--", err.Error())
 			return err
 		}
 
 		//bytesRead, err := f.ReadAt(buf, int64(start))
 
 		log.Info().Msgf("sending data : %d", n)
-		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf[:n],}); err != nil {
+		if err := stream.Send(&protobuf.DownloadResponse{Total: total, Times: int64(i), DataBytes: buf[:n]}); err != nil {
 			return err
 		}
 		//start += bytesRead

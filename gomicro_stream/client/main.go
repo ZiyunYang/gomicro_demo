@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/gomicro_demo/stream/protobuf"
+	"github.com/gomicro_demo/gomicro_stream/protobuf"
 	"github.com/micro/go-micro"
-	"github.com/micro/go-micro/broker/nats"
 	stanBroker "github.com/micro/go-plugins/broker/stan"
 	natsRegistry "github.com/micro/go-plugins/registry/nats"
 	natsTransport "github.com/micro/go-plugins/transport/nats"
